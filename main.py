@@ -4,209 +4,264 @@ from ttkbootstrap.dialogs import Messagebox
 import sqlite3
 import pyodbc
 import warnings
+from concurrent.futures import ProcessPoolExecutor
+import multiprocessing
 
-# Intentamos la importación más compatible para Tableview para evitar que el programa no arranque
-try:
-    from ttkbootstrap.widgets.tableview import Tableview
-except ImportError:
-    try:
-        from ttkbootstrap.tableview import Tableview
-    except ImportError:
-        Tableview = None 
+warnings.filterwarnings("ignore")
 
-# Silenciar avisos
-warnings.filterwarnings("ignore", category=UserWarning)
-warnings.filterwarnings("ignore", category=DeprecationWarning)
+#PATH_DB_SQLITE = "Dataset/Credenciales.db"
+PATH_DB_SQLITE = r"\\T_serv-dbi01\t\App_Automatizacion\Repoblmiento_DB\Credenciales.db"
+# 🔥 Pool global de procesos
+executor = ProcessPoolExecutor(max_workers=1)
 
-# CONFIGURACIÓN DE RUTAS Y CONEXIONES
-PATH_DB_SQLITE = "C:/ARCHIVOS_DEV/Archivos_Py/PROY_INTERFACES_PY/Dev_Repoblamiento/Dataset/Credenciales.db"
+
+# =====================================
+# STORED PROCEDURE (PROCESO SEPARADO)
+# =====================================
 
 def ejecutar_sp(fecha_inicio, fecha_fin, sp_name):
+
     try:
+
         conn_str = (
             "DRIVER={ODBC Driver 17 for SQL Server};"
             "SERVER=D_SERV-DBI01;"
             "DATABASE=SIG_COLOMBIA_DW;"
-            "UID=SERVIENT\\inteligencianegocios;"
-            "PWD=N3g0c10S3rv13ntr3g4TGB.159yhn753.*-;"
+            "Trusted_Connection=yes;"
             "TrustServerCertificate=yes;"
         )
-        with pyodbc.connect(conn_str) as conn:
-            with conn.cursor() as cursor:
-                query = f"EXEC {sp_name} ?, ?"
-                cursor.execute(query, (fecha_inicio, fecha_fin))
-                conn.commit()
-        return "SP ejecutado correctamente ✅"
-    except Exception as e:
-        return f"Error ejecutando SP:\n{str(e)}"
 
-# --- VENTANA PARA CONFIGURAR FECHAS ---
+        with pyodbc.connect(conn_str) as conn:
+            cursor = conn.cursor()
+
+            query = f"EXEC {sp_name} ?, ?"
+            cursor.execute(query, fecha_inicio, fecha_fin)
+
+            conn.commit()
+        Messagebox.show_info(
+            message="✅ El Stored Procedure finalizó correctamente.",
+            title="Proceso Finalizado"
+        )
+
+        return "✅ Stored Procedure ejecutado correctamente."
+
+    except Exception as e:
+        return f"❌ Error ejecutando SP:\n{str(e)}"
+
+
+# =====================================
+# VENTANA FECHAS
+# =====================================
+
 class VentanaFechas(tb.Toplevel):
+
     def __init__(self, parent, titulo_cubo, sp_destino):
         super().__init__(parent)
+
         self.title(f"Repoblar: {titulo_cubo}")
-        self.geometry("450x450")
+        self.geometry("450x420")
         self.resizable(False, False)
+
         self.sp_destino = sp_destino
-        self.parent = parent
-        self.grab_set() 
-
-        tb.Label(self, text=f"Configuración para:\n{titulo_cubo}", 
-                 font=("Segoe UI", 12, "bold"), justify=CENTER).pack(pady=20)
-
-        frame_fechas = tb.Frame(self)
-        frame_fechas.pack(pady=10)
-
-        tb.Label(frame_fechas, text="Fecha Inicial:").grid(row=0, column=0, padx=10, pady=5)
-        self.fecha_inicio = tb.widgets.DateEntry(frame_fechas, bootstyle="primary", width=15, dateformat="%Y-%m-%d")
-        self.fecha_inicio.grid(row=0, column=1, padx=10, pady=5)
-
-        tb.Label(frame_fechas, text="Fecha Final:").grid(row=1, column=0, padx=10, pady=5)
-        self.fecha_fin = tb.widgets.DateEntry(frame_fechas, bootstyle="primary", width=15, dateformat="%Y-%m-%d")
-        self.fecha_fin.grid(row=1, column=1, padx=10, pady=5)
-
-        self.btn_ejecutar = tb.Button(self, text="🚀 Iniciar Repoblamiento", bootstyle="success", 
-                                      command=self.ejecutar, width=25)
-        self.btn_ejecutar.pack(pady=30)
-
-        tb.Button(self, text="⬅ Cerrar", bootstyle="danger-outline", 
-                  command=self.destroy, width=25).pack()
-
-    def ejecutar(self):
-        fi = self.fecha_inicio.entry.get()
-        ff = self.fecha_fin.entry.get()
-        self.btn_ejecutar.config(state="disabled", text="Procesando...")
-        self.update()
-
-        resultado = ejecutar_sp(fi, ff, self.sp_destino)
-        self.btn_ejecutar.config(state="normal", text="🚀 Iniciar Repoblamiento")
-        Messagebox.show_info(message=resultado, title="Resultado del Proceso")
-
-# --- GESTIÓN DE USUARIOS (ADMIN) ---
-class PanelAdmin(tb.Toplevel):
-    def __init__(self):
-        super().__init__()
-        self.title("Gestión de Usuarios - BI")
-        self.geometry("900x600")
         self.grab_set()
 
-        container = tb.Frame(self, padding=20)
-        container.pack(fill=BOTH, expand=True)
+        tb.Label(
+            self,
+            text=f"Configuración para:\n{titulo_cubo}",
+            font=("Segoe UI", 12, "bold"),
+            justify=CENTER
+        ).pack(pady=20)
 
-        tb.Label(container, text="ADMINISTRACIÓN DE ACCESOS", font=("Segoe UI", 16, "bold")).pack(pady=10)
+        frame = tb.Frame(self)
+        frame.pack(pady=10)
 
-        self.columnas = [
-            {"text": "ID", "stretch": False},
-            {"text": "Usuario", "stretch": True},
-            {"text": "Rol", "stretch": True},
-            {"text": "Estado", "stretch": True}
-        ]
+        tb.Label(frame, text="Fecha Inicial:").grid(row=0, column=0, padx=10, pady=5)
+        self.fi = tb.widgets.DateEntry(frame, width=15, dateformat="%Y-%m-%d")
+        self.fi.grid(row=0, column=1)
 
-        if Tableview:
-            self.dt = Tableview(master=container, coldata=self.columnas, rowdata=[], bootstyle="info", paginated=True)
-            self.dt.pack(fill=BOTH, expand=True, pady=10)
-        
-        btns = tb.Frame(container)
-        btns.pack(fill=X, pady=10)
-        tb.Button(btns, text="🔄 Cambiar Estado (ON/OFF)", bootstyle=WARNING, command=self.alternar_estado).pack(side=LEFT, padx=5)
-        tb.Button(btns, text="🔄 Refrescar", bootstyle=INFO, command=self.cargar_datos).pack(side=RIGHT, padx=5)
-        self.cargar_datos()
+        tb.Label(frame, text="Fecha Final:").grid(row=1, column=0, padx=10, pady=5)
+        self.ff = tb.widgets.DateEntry(frame, width=15, dateformat="%Y-%m-%d")
+        self.ff.grid(row=1, column=1)
 
-    def cargar_datos(self):
-        rows = []
-        try:
-            with sqlite3.connect(PATH_DB_SQLITE) as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT ID, USUARIO, TIPO_PERMISO_ACCES, ESTADO FROM CREDENCIALES")
-                for f in cursor.fetchall():
-                    est = "✅ ACTIVO" if f[3] == 1 else "❌ INACTIVO"
-                    rows.append((f[0], f[1], f[2], est))
-            self.dt.build_table_data(self.columnas, rows)
-        except: pass
+        self.btn = tb.Button(
+            self,
+            text="🚀 Iniciar Repoblamiento",
+            bootstyle="success",
+            command=self.ejecutar
+        )
+        self.btn.pack(pady=20)
 
-    def alternar_estado(self):
-        sel = self.dt.view.selection()
-        if not sel: return
-        vals = self.dt.view.item(sel[0], "values")
-        nuevo = 0 if "ACTIVO" in vals[3] else 1
-        with sqlite3.connect(PATH_DB_SQLITE) as conn:
-            conn.execute("UPDATE CREDENCIALES SET ESTADO = ? WHERE ID = ?", (nuevo, vals[0]))
-            conn.commit()
-        self.cargar_datos()
+        self.progress = tb.Progressbar(
+            self,
+            mode="indeterminate",
+            bootstyle="info-striped",
+            length=250
+        )
 
-# --- PANEL PRINCIPAL DE REPOBLAMIENTO ---
+    # ===============================
+
+    def ejecutar(self):
+
+        fi = self.fi.entry.get()
+        ff = self.ff.entry.get()
+
+        self.btn.config(state="disabled", text="Procesando...")
+        self.progress.pack(pady=15)
+        self.progress.start(10)
+
+        self.config(cursor="watch")
+
+        self.future = executor.submit(
+            ejecutar_sp,
+            fi,
+            ff,
+            self.sp_destino
+        )
+
+        self.after(400, self.verificar_estado)
+
+    # ===============================
+
+    def verificar_estado(self):
+
+        if self.future.done():
+
+            resultado = self.future.result()
+
+            self.progress.stop()
+
+            Messagebox.show_info(
+                message=resultado,
+                title="Resultado del Proceso"
+            )
+
+            self.destroy()
+            return
+
+        self.after(400, self.verificar_estado)
+
+
+# =====================================
+# PANEL PRINCIPAL
+# =====================================
+
 class AppPrincipal(tb.Toplevel):
-    def __init__(self, rol):
-        super().__init__()
-        self.title("SISTEMA DE REPOBLAMIENTO - BI")
-        self.geometry("750x650")
 
-        # Header
-        tb.Label(self, text=f"PANEL DE CONTROL - {rol}", font=("Segoe UI", 18, "bold"), 
-                 bootstyle="inverse-dark").pack(fill=X, pady=20, padx=20)
+    def __init__(self, parent, rol):
+        super().__init__(parent)
 
-        # Botón de Admin si aplica
-        if rol == "ADMINISTRADOR":
-            tb.Button(self, text="🛡️ Gestionar Usuarios", bootstyle="warning-outline", 
-                      command=PanelAdmin, width=30).pack(pady=10)
+        self.title("SISTEMA DE REPOBLAMIENTO BI")
+        self.geometry("650x500")
 
-        tb.Label(self, text="Seleccione el cubo que desea procesar:", font=("Segoe UI", 11)).pack(pady=20)
+        tb.Label(
+            self,
+            text=f"PANEL DE CONTROL - {rol}",
+            font=("Segoe UI", 18, "bold")
+        ).pack(pady=30)
 
-        # Restauración de botones de procesos
         opciones = [
-            ("📊 ENVIOS MOVILIZADOS", "primary", "SP_REPOBLAR_ENVIOS"),
-            ("📁 GUIAS ENTREGADAS (GETP)", "info", "SP_REPOBLAR_GETP"),
-            ("⚙ PROCESO LOGISTICO", "warning", "SP_REPOBLAR_LOGISTICA")
+            ("📊 ENVIOS MOVILIZADOS",
+             "[TMP].[REPOBLAMIENTO_LLAMAR_ETL_EJECUTAR_SP_ENVIOS_MOVILIZADOS_2]"),
+
+            ("📁 GUIAS ENTREGADAS",
+             "[TMP].[REPOBLAMIENTO_LLAMAR_ETL_EJECUTAR_SP_ENVIOS_MOVILIZADOS_2]"),
+
+            ("⚙ PROCESO LOGISTICO",
+             "[TMP].[REPOBLAMIENTO_LLAMAR_ETL_EJECUTAR_SP_ENVIOS_MOVILIZADOS_2]")
         ]
 
-        for texto, estilo, sp in opciones:
-            tb.Button(self, text=texto, bootstyle=estilo, width=45,
-                      command=lambda t=texto, s=sp: self.abrir_fechas(t, s)).pack(pady=12)
+        for texto, sp in opciones:
 
-    def abrir_fechas(self, titulo, sp):
-        VentanaFechas(self, titulo, sp)
+            tb.Button(
+                self,
+                text=texto,
+                bootstyle="primary",
+                width=40,
+                command=lambda t=texto, s=sp: VentanaFechas(self, t, s)
+            ).pack(pady=10)
 
-# --- VENTANA DE LOGIN ---
+
+# =====================================
+# LOGIN (VENTANA RAÍZ)
+# =====================================
+
 class VentanaLogin(tb.Window):
+
     def __init__(self):
         super().__init__(themename="darkly")
-        self.title("Acceso BI - Credenciales")
-        self.geometry("450x500")
 
-        container = tb.Frame(self, padding=30)
+        self.title("Acceso BI")
+        self.geometry("420x420")
+
+        container = tb.Frame(self, padding=40)
         container.pack(expand=True)
 
-        tb.Label(container, text="LOGIN SISTEMA BI", font=("Segoe UI", 20, "bold")).pack(pady=30)
-        
-        self.user_ent = tb.Entry(container, width=35); self.user_ent.pack(pady=10)
-        self.user_ent.insert(0, "admin")
+        tb.Label(
+            container,
+            text="LOGIN SISTEMA BI",
+            font=("Segoe UI", 18, "bold")
+        ).pack(pady=20)
 
-        self.pass_ent = tb.Entry(container, width=35, show="*"); self.pass_ent.pack(pady=10)
-        self.pass_ent.insert(0, "admin123")
+        self.user = tb.Entry(container, width=30)
+        self.user.pack(pady=10)
+        self.user.insert(0, "admin")
 
-        tb.Button(container, text="🚀 Ingresar", bootstyle="primary", width=30, 
-                  command=self.login).pack(pady=30)
+        self.password = tb.Entry(container, width=30, show="*")
+        self.password.pack(pady=10)
+        self.password.insert(0, "admin123")
+
+        tb.Button(
+            container,
+            text="Ingresar",
+            bootstyle="success",
+            width=25,
+            command=self.login
+        ).pack(pady=20)
+
+    # ===============================
 
     def login(self):
-        u, p = self.user_ent.get(), self.pass_ent.get()
+
+        u = self.user.get()
+        p = self.password.get()
+
         try:
             with sqlite3.connect(PATH_DB_SQLITE) as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT TIPO_PERMISO_ACCES, ESTADO FROM CREDENCIALES WHERE USUARIO=? AND PASSWORD=?", (u, p))
+
+                cursor.execute(
+                    "SELECT TIPO_PERMISO_ACCES, ESTADO FROM CREDENCIALES WHERE USUARIO=? AND PASSWORD=?",
+                    (u, p)
+                )
+
                 datos = cursor.fetchone()
-            
+
             if datos:
+
                 rol, estado = datos
+
                 if estado == 1:
+
+                    # ocultamos login
                     self.withdraw()
-                    AppPrincipal(rol)
+
+                    AppPrincipal(self, rol)
+
                 else:
-                    Messagebox.show_error("Usuario deshabilitado.", "Acceso Denegado")
+                    Messagebox.show_error("Usuario deshabilitado.")
+
             else:
-                Messagebox.show_error("Credenciales incorrectas.", "Error")
+                Messagebox.show_error("Credenciales incorrectas.")
+
         except Exception as e:
-            Messagebox.show_error(f"Error base de datos: {e}")
+            Messagebox.show_error(f"Error DB:\n{e}")
+
+
+# =====================================
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
+    multiprocessing.set_start_method("spawn", force=True)
+
     app = VentanaLogin()
     app.mainloop()
