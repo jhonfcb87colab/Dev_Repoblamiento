@@ -5,7 +5,7 @@ import sqlite3
 
 
 # se crea una base de datos en SQLite llamada veterinaria.db
-conn = sqlite3.connect('../DataSet/Credenciales.db')
+conn = sqlite3.connect('C:/ARCHIVOS_DEV/Archivos_Py/PROY_INTERFACES_PY/Dev_Repoblamiento/Dataset/Credenciales.db')
 # Creamos un cursor para ejecutar comandos SQL
 cursor = conn.cursor()
 
@@ -45,7 +45,8 @@ def Funcion_ejecutar_DML(query_dml, conexion=conn):
 script_crear_tabla_credenciales = """
                         CREATE TABLE CREDENCIALES (
                             ID INTEGER PRIMARY KEY AUTOINCREMENT,
-                            NOMBRE_SERVICIO VARCHAR(150) NOT NULL,
+                            TIPO_PERMISO_ACCES VARCHAR(150) NOT NULL,
+                            ID_ROLE INTEGER NOT NULL,
                             LINK TEXT NOT NULL,
                             USUARIO VARCHAR(500) NOT NULL,
                             PASSWORD TEXT NOT NULL,
