@@ -42,20 +42,30 @@ def Funcion_ejecutar_DML(query_dml, conexion=conn):
     return f"DML ejecutado correctamente: {query_dml}"
 
 
+
+
 script_crear_tabla_credenciales = """
-                        CREATE TABLE CREDENCIALES (
-                            ID INTEGER PRIMARY KEY AUTOINCREMENT,
-                            TIPO_PERMISO_ACCES VARCHAR(150) NOT NULL,
-                            ID_ROLE INTEGER NOT NULL,
-                            LINK TEXT NOT NULL,
-                            USUARIO VARCHAR(500) NOT NULL,
-                            PASSWORD TEXT NOT NULL,
-                            TIPO VARCHAR(50) NULL
-                        );
-                        """
+CREATE TABLE IF NOT EXISTS CREDENCIALES (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                TIPO_PERMISO_ACCES VARCHAR(150) NOT NULL,
+                ID_ROLE INTEGER NOT NULL,
+                LINK TEXT NOT NULL,
+                USUARIO VARCHAR(500) UNIQUE NOT NULL,
+                PASSWORD TEXT NOT NULL,
+                TIPO VARCHAR(50) NULL,
+                ESTADO INTEGER DEFAULT 1 -- 1: Habilitado, 0: Deshabilitado
+                );
+"""
 
-# # Funcion_ejecutar_DDL(guias)
-# Funcion_ejecutar_DDL('drop table if exists CREDENCIALES')
-# Funcion_ejecutar_DDL(script_crear_tabla_credenciales)
+# Ejecución de DDL (Definición)
+Funcion_ejecutar_DDL('DROP TABLE IF EXISTS CREDENCIALES')
+Funcion_ejecutar_DDL(script_crear_tabla_credenciales)
 
+# Script de Inserción (Corregido el nombre de la tabla)
+insertar_usuarios = """
+INSERT INTO CREDENCIALES (TIPO_PERMISO_ACCES, ID_ROLE, LINK, USUARIO, PASSWORD, TIPO,ESTADO) 
+VALUES ('ADMINISTRADOR', 1, 'NA', 'admin', 'admin123', 'ADMIN', 1);
+"""
 
+# Ejecución de DML (Manipulación)
+Funcion_ejecutar_DML(insertar_usuarios)
