@@ -1,12 +1,11 @@
-import sqlite3
-import pyodbc
-import warnings
-import multiprocessing
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from ttkbootstrap.dialogs import Messagebox
+import sqlite3
+import pyodbc
+import warnings
 from concurrent.futures import ProcessPoolExecutor
-from Conecction.ConnSQL import ConexionSQL
+import multiprocessing
 
 warnings.filterwarnings("ignore")
 
@@ -16,6 +15,43 @@ PATH_DB_SQLITE = r"\\T_serv-dbi01\t\App_Automatizacion\Repoblmiento_DB\Credencia
 executor = ProcessPoolExecutor(max_workers=1)
 
 
+# =====================================
+# STORED PROCEDURE (PROCESO SEPARADO)
+# =====================================
+
+def ejecutar_sp(fecha_inicio, fecha_fin, sp_name):
+
+    try:
+
+        conn_str = (
+            "DRIVER={ODBC Driver 17 for SQL Server};"
+            "SERVER=D_SERV-DBI01;"
+            "DATABASE=SIG_COLOMBIA_DW;"
+            "Trusted_Connection=yes;"
+            "TrustServerCertificate=yes;"
+        )
+
+        with pyodbc.connect(conn_str) as conn:
+            cursor = conn.cursor()
+
+            query = f"EXEC {sp_name} ?, ?"
+            cursor.execute(query, fecha_inicio, fecha_fin)
+
+            conn.commit()
+        Messagebox.show_info(
+            message="✅ El Stored Procedure finalizó correctamente.",
+            title="Proceso Finalizado"
+        )
+
+        return "✅ Stored Procedure ejecutado correctamente."
+
+    except Exception as e:
+        return f"❌ Error ejecutando SP:\n{str(e)}"
+
+
+# =====================================
+# VENTANA FECHAS
+# =====================================
 
 class VentanaFechas(tb.Toplevel):
 
@@ -76,7 +112,7 @@ class VentanaFechas(tb.Toplevel):
         self.config(cursor="watch")
 
         self.future = executor.submit(
-            ConexionSQL.ejecutar_sp,
+            ejecutar_sp,
             fi,
             ff,
             self.sp_destino
@@ -123,18 +159,15 @@ class AppPrincipal(tb.Toplevel):
             font=("Segoe UI", 18, "bold")
         ).pack(pady=30)
 
-
-#[dbo].[BI_REPOBLA_ENVIOS_MOVILIZADOS]
-
         opciones = [
             ("📊 ENVIOS MOVILIZADOS",
-             "[dbo].[BI_REPOBLA_ENVIOS_MOVILIZADOS]"),
+             "[TMP].[REPOBLAMIENTO_LLAMAR_ETL_EJECUTAR_SP_ENVIOS_MOVILIZADOS_2]"),
 
             ("📁 GUIAS ENTREGADAS",
-             "NA"),
+             "[TMP].[REPOBLAMIENTO_LLAMAR_ETL_EJECUTAR_SP_ENVIOS_MOVILIZADOS_2]"),
 
             ("⚙ PROCESO LOGISTICO",
-             "NA")
+             "[TMP].[REPOBLAMIENTO_LLAMAR_ETL_EJECUTAR_SP_ENVIOS_MOVILIZADOS_2]")
         ]
 
         for texto, sp in opciones:
@@ -146,21 +179,6 @@ class AppPrincipal(tb.Toplevel):
                 width=40,
                 command=lambda t=texto, s=sp: VentanaFechas(self, t, s)
             ).pack(pady=10)
-
-
-        tb.Button(
-                    self,
-                    text="🛑 FINALIZAR TODO EL PROGRAMA",
-                    bootstyle="danger", # Rojo sólido para resaltar
-                    width=40,
-                    command=self.salir_total
-                ).pack(pady=20)
-
-
-    def salir_total(self):
-            """Cierra todas las ventanas y finaliza el proceso de Python"""
-            self.master.destroy() # Destruye la ventana principal (Root)
-            self.quit()           # Sale del mainloop
 
 
 # =====================================
