@@ -1,21 +1,21 @@
-from ldap3 import Server, Connection, ALL, NTLM
-#AD_SERVER = "ldap://dc.10.10.3.63 O 10.10.3.64.local"   # o "ldaps://dc.tudominio.local"
-AD_SERVER = "10.10.3.63"   # o "ldaps://dc.tudominio.local"
- 
-#SERVIENT\inteligencianegocios
-DOMAIN = "SERVIENT.COM.CO"
-USER = "inteligencianegocios"
-PASSWORD = "N3g0c10S3rv13ntr3g4TGB.159yhn753.*-"
- 
-server = Server(AD_SERVER, get_info=ALL)
- 
-conn = Connection(
-    server,
-    user=f"{DOMAIN}\\{USER}",
-    password=PASSWORD,
-    authentication=NTLM,
-    auto_bind=True
-)
- 
-print("Bind OK:", conn.bound)
- 
+from Conecction import connSQLITE 
+import pandas as pd
+db = connSQLITE.ConexionSQLite()
+
+
+insert_sql = "INSERT INTO CONFIG_CUBOS " \
+"(NOMBRE_MOSTRAR, SP_ASOCIADO) " \
+"VALUES ('MODELO EFICIENCIA RECOLECCION','[TMP].[REPOBLAR_EFICIENCIA_RECOLECCION]')"
+print(db.ejecutar_dml(insert_sql))
+
+
+if db.conn:
+    opciones = pd.DataFrame()
+    if db.conn:
+        query = "SELECT * FROM CONFIG_CUBOS"
+        opciones = db.ejecutar_dql(query)  
+        # Iteramos usando itertuples por eficiencia y claridad
+        for fila in opciones.itertuples(index=False):
+            texto_btn = fila.NOMBRE_MOSTRAR
+            valor_sp = fila.SP_ASOCIADO
+            print(texto_btn,' - ',valor_sp)
